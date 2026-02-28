@@ -1,0 +1,188 @@
+substitutions:
+  name: "esp32testes"
+  friendly_name: "ESP32Testes"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  on_boot:
+    priority: -100
+    then:
+      - script.execute: {id: restore_logic, r_id: rele1, r_last: rele1last, r_on: rele1On}
+      - script.execute: {id: restore_logic, r_id: rele2, r_last: rele2last, r_on: rele2On}
+      - script.execute: {id: restore_logic, r_id: rele3, r_last: rele3last, r_on: rele3On}
+      - script.execute: {id: restore_logic, r_id: rele4, r_last: rele4last, r_on: rele4On}
+      - script.execute: {id: restore_logic, r_id: rele5, r_last: rele5last, r_on: rele5On}
+      - script.execute: {id: restore_logic, r_id: rele6, r_last: rele6last, r_on: rele6On}
+      - script.execute: {id: restore_logic, r_id: rele7, r_last: rele7last, r_on: rele7On}
+      - script.execute: {id: restore_logic, r_id: rele8, r_last: rele8last, r_on: rele8On}
+
+esp32:
+  board: esp32dev
+  framework: {type: arduino}
+
+preferences:
+  flash_write_interval: 20s
+
+# --- CONECTIVIDADE ---
+logger: {level: INFO}
+api: {encryption: {key: "<sua_chave_api>"}}
+ota: {password: "<sua_chave_ota>"}
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap: {ssid: "ESP32Testes Hotspot", password: "password123"}
+
+captive_portal:
+web_server: {port: 80}
+
+# --- VARIÁVEIS DE MEMÓRIA ---
+globals:
+  - {id: rele1On, type: bool, restore_value: yes}
+  - {id: rele2On, type: bool, restore_value: yes}
+  - {id: rele3On, type: bool, restore_value: yes}
+  - {id: rele4On, type: bool, restore_value: yes}
+  - {id: rele5On, type: bool, restore_value: yes}
+  - {id: rele6On, type: bool, restore_value: yes}
+  - {id: rele7On, type: bool, restore_value: yes}
+  - {id: rele8On, type: bool, restore_value: yes}
+
+# --- CORE LOGIC (Scripts) ---
+script:
+  - id: restore_logic
+    mode: parallel
+    parameters: {r_id: id(switch), r_last: id(select), r_on: bool}
+    then:
+      - if:
+          condition: {lambda: 'return (r_last.state == "Always_On") || (r_last.state == "Restore_Last_State" && r_on);'}
+          then: [switch.turn_on: r_id]
+
+  - id: save_state
+    mode: parallel
+    parameters: {idx: int, val: bool}
+    then:
+      - lambda: |-
+          switch(idx) {
+            case 1: id(rele1On)=val; break; case 2: id(rele2On)=val; break;
+            case 3: id(rele3On)=val; break; case 4: id(rele4On)=val; break;
+            case 5: id(rele5On)=val; break; case 6: id(rele6On)=val; break;
+            case 7: id(rele7On)=val; break; case 8: id(rele8On)=val; break;
+          }
+
+  - id: sw_logic
+    mode: parallel
+    parameters: {r_id: id(switch), s_tipo: id(select), s_con: id(switch), is_press: bool}
+    then:
+      - if:
+          condition:
+            lambda: |-
+              if (!s_con.state) return false;
+              if (s_tipo.state == "Pulso" && is_press) return true;
+              if (s_tipo.state == "Comum") return true;
+              return false;
+          then: [switch.toggle: r_id]
+
+# --- RELÉS ---
+switch:
+  - platform: gpio
+    pin: 13
+    inverted: true
+    id: rele1
+    name: "Rele 1"
+    restore_mode: DISABLED
+    on_state: &relay_save [script.execute: {id: save_state, idx: 1, val: !lambda "return x;"}]
+
+  - {platform: gpio, pin: 12, inverted: true, id: rele2, name: "Rele 2", restore_mode: DISABLED, on_state: [script.execute: {id: save_state, idx: 2, val: !lambda "return x;"}]}
+  - {platform: gpio, pin: 14, inverted: true, id: rele3, name: "Rele 3", restore_mode: DISABLED, on_state: [script.execute: {id: save_state, idx: 3, val: !lambda "return x;"}]}
+  - {platform: gpio, pin: 27, inverted: true, id: rele4, name: "Rele 4", restore_mode: DISABLED, on_state: [script.execute: {id: save_state, idx: 4, val: !lambda "return x;"}]}
+  - {platform: gpio, pin: 5,  inverted: true, id: rele5, name: "Rele 5", restore_mode: DISABLED, on_state: [script.execute: {id: save_state, idx: 5, val: !lambda "return x;"}]}
+  - {platform: gpio, pin: 18, inverted: true, id: rele6, name: "Rele 6", restore_mode: DISABLED, on_state: [script.execute: {id: save_state, idx: 6, val: !lambda "return x;"}]}
+  - {platform: gpio, pin: 19, inverted: true, id: rele7, name: "Rele 7", restore_mode: DISABLED, on_state: [script.execute: {id: save_state, idx: 7, val: !lambda "return x;"}]}
+  - {platform: gpio, pin: 21, inverted: true, id: rele8, name: "Rele 8", restore_mode: DISABLED, on_state: [script.execute: {id: save_state, idx: 8, val: !lambda "return x;"}]}
+
+  - platform: template
+    name: "Interruptor 1 Conectado"
+    id: interruptor1conectado
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    entity_category: config
+
+  # --- TEMPLATES DE CONEXÃO (2-8) ---
+  - {platform: template, id: interruptor2conectado, name: "Int 2 Conectado", optimistic: true, restore_mode: RESTORE_DEFAULT_ON, entity_category: config}
+  - {platform: template, id: interruptor3conectado, name: "Int 3 Conectado", optimistic: true, restore_mode: RESTORE_DEFAULT_ON, entity_category: config}
+  - {platform: template, id: interruptor4conectado, name: "Int 4 Conectado", optimistic: true, restore_mode: RESTORE_DEFAULT_ON, entity_category: config}
+  - {platform: template, id: interruptor5conectado, name: "Int 5 Conectado", optimistic: true, restore_mode: RESTORE_DEFAULT_ON, entity_category: config}
+  - {platform: template, id: interruptor6conectado, name: "Int 6 Conectado", optimistic: true, restore_mode: RESTORE_DEFAULT_ON, entity_category: config}
+  - {platform: template, id: interruptor7conectado, name: "Int 7 Conectado", optimistic: true, restore_mode: RESTORE_DEFAULT_ON, entity_category: config}
+  - {platform: template, id: interruptor8conectado, name: "Int 8 Conectado", optimistic: true, restore_mode: RESTORE_DEFAULT_ON, entity_category: config}
+
+# --- INTERRUPTORES FÍSICOS ---
+binary_sensor:
+  - platform: gpio
+    pin: {number: 26, inverted: true, mode: {input: true, pullup: true}}
+    id: interruptor1
+    name: "Interruptor 1"
+    on_press: [script.execute: {id: sw_logic, r_id: rele1, s_tipo: int1tipo, s_con: interruptor1conectado, is_press: true}]
+    on_release: [script.execute: {id: sw_logic, r_id: rele1, s_tipo: int1tipo, s_con: interruptor1conectado, is_press: false}]
+    on_multi_click: &click_logic
+      - timing: [ON for at most 800ms, OFF for at least 500ms]
+        then: [text_sensor.template.publish: {id: action_output, state: "single"}]
+      - timing: [ON for at least 1s]
+        then: [text_sensor.template.publish: {id: action_output, state: "hold"}]
+
+  - platform: gpio
+    pin: {number: 25, inverted: true, mode: {input: true, pullup: true}}
+    id: interruptor2
+    on_press: [script.execute: {id: sw_logic, r_id: rele2, s_tipo: int2tipo, s_con: interruptor2conectado, is_press: true}]
+    on_release: [script.execute: {id: sw_logic, r_id: rele2, s_tipo: int2tipo, s_con: interruptor2conectado, is_press: false}]
+    on_multi_click: *click_logic
+
+  # Adicione os outros 6 binary_sensors seguindo o padrão de pinos da sua placa.
+
+# --- CONFIGURAÇÕES DE INTERFACE ---
+select:
+  - platform: template
+    name: "Rele 1 PowerOn"
+    id: rele1last
+    options: &pwr_options ["Restore_Last_State", "Always_Off", "Always_On"]
+    optimistic: true
+    restore_value: true
+
+  - {platform: template, id: rele2last, name: "Rele 2 PowerOn", options: *pwr_options, optimistic: true, restore_value: true}
+  - {platform: template, id: rele3last, name: "Rele 3 PowerOn", options: *pwr_options, optimistic: true, restore_value: true}
+  - {platform: template, id: rele4last, name: "Rele 4 PowerOn", options: *pwr_options, optimistic: true, restore_value: true}
+  - {platform: template, id: rele5last, name: "Rele 5 PowerOn", options: *pwr_options, optimistic: true, restore_value: true}
+  - {platform: template, id: rele6last, name: "Rele 6 PowerOn", options: *pwr_options, optimistic: true, restore_value: true}
+  - {platform: template, id: rele7last, name: "Rele 7 PowerOn", options: *pwr_options, optimistic: true, restore_value: true}
+  - {platform: template, id: rele8last, name: "Rele 8 PowerOn", options: *pwr_options, optimistic: true, restore_value: true}
+
+  - platform: template
+    name: "Int 1 Tipo"
+    id: int1tipo
+    options: &int_options ["Comum", "Pulso", "Cenas"]
+    optimistic: true
+    restore_value: true
+
+  - {platform: template, id: int2tipo, name: "Int 2 Tipo", options: *int_options, optimistic: true, restore_value: true}
+  - {platform: template, id: int3tipo, name: "Int 3 Tipo", options: *int_options, optimistic: true, restore_value: true}
+  - {platform: template, id: int4tipo, name: "Int 4 Tipo", options: *int_options, optimistic: true, restore_value: true}
+  - {platform: template, id: int5tipo, name: "Int 5 Tipo", options: *int_options, optimistic: true, restore_value: true}
+  - {platform: template, id: int6tipo, name: "Int 6 Tipo", options: *int_options, optimistic: true, restore_value: true}
+  - {platform: template, id: int7tipo, name: "Int 7 Tipo", options: *int_options, optimistic: true, restore_value: true}
+  - {platform: template, id: int8tipo, name: "Int 8 Tipo", options: *int_options, optimistic: true, restore_value: true}
+
+# --- SENSORES ---
+dallas:
+  - {pin: 23, id: linha1} # Ajuste o pino se necessário
+
+sensor:
+  - platform: wifi_signal
+    name: "Sinal WiFi"
+  - platform: dallas
+    dallas_id: linha1
+    address: 0xa37c4ef61d64ff28
+    name: "Temp 1"
+
+text_sensor:
+  - {platform: template, id: action_output, name: "Última Ação Evento"}
+  - {platform: wifi_info, ip_address: {name: "IP"}}
